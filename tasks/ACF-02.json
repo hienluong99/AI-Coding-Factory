@@ -1,0 +1,40 @@
+{
+  "id": "ACF-02",
+  "objective": "Chuẩn hóa task contract",
+  "description": "Xây dựng schema và parser kiểm tra tính hợp lệ của task contract gồm ID, mục tiêu, phạm vi in/out of scope, constraints, tiêu chí nghiệm thu và lệnh kiểm thử.",
+  "scope": {
+    "in_scope": [
+      "src/contracts/*",
+      "tasks/*",
+      "tests/test_task_contract.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Có schema task gồm ID, mục tiêu, phạm vi, constraints",
+    "Có acceptance criteria và lệnh kiểm thử",
+    "Task thiếu tiêu chí bắt buộc bị từ chối với thông báo lỗi dễ hiểu"
+  ],
+  "test_commands": [
+    "pytest tests/test_task_contract.py"
+  ],
+  "dependencies": [
+    "ACF-01"
+  ],
+  "status": "completed"
+}

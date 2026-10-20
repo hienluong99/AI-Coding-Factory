@@ -1,0 +1,39 @@
+{
+  "id": "ACF-01",
+  "objective": "Khởi tạo repository và quy tắc agent",
+  "description": "Thiết lập cấu trúc thư mục ban đầu, file .gitignore, .env.example, README.md và quy tắc AGENTS.md.",
+  "scope": {
+    "in_scope": [
+      "README.md",
+      "AGENTS.md",
+      ".gitignore",
+      ".env.example"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "README.md và AGENTS.md có hướng dẫn rõ ràng",
+    "Có .gitignore và .env.example, không chứa secret",
+    "Quy định phạm vi file, quyền terminal và cách xử lý task"
+  ],
+  "test_commands": [
+    "git status"
+  ],
+  "dependencies": [],
+  "status": "completed"
+}

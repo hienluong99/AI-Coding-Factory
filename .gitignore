@@ -68,3 +68,10 @@ Desktop.ini
 # Beads local runtime states (if applicable)
 .beads/daemon.sock
 .beads/*.lock
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*

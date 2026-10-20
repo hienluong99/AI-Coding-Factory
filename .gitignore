@@ -68,6 +68,7 @@ Desktop.ini
 # Beads local runtime states (if applicable)
 .beads/daemon.sock
 .beads/*.lock
+.beads.gate.lock*
 
 # Beads / Dolt files (added by bd init)
 .dolt/

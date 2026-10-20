@@ -68,7 +68,7 @@ def test_parse_sample_task_files():
 
     acf_02 = parse_task_file(tasks_dir / "ACF-02.json")
     assert acf_02.id == "ACF-02"
-    assert acf_02.status == TaskStatus.IN_PROGRESS
+    assert acf_02.status == TaskStatus.COMPLETED
 
 
 def test_missing_id_rejected(valid_task_data):

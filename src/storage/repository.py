@@ -56,13 +56,15 @@ class RunRepository:
         max_attempts: int = 3,
         metadata: Optional[Dict[str, Any]] = None,
         log_path: Optional[str] = None,
-        run_id: Optional[str] = None
+        run_id: Optional[str] = None,
+        status: RunStatus = RunStatus.PENDING,
     ) -> RunRecord:
         """Create and persist a new Run record."""
         final_run_id = run_id or self.generate_run_id(task_id)
         now = utc_now_iso()
         meta_dict = metadata or {}
         default_log = log_path or f"runs/{final_run_id}/execution.log"
+        initial_status = status.value if isinstance(status, RunStatus) else str(status)
 
         with self._get_connection() as conn:
             conn.execute(
@@ -76,7 +78,7 @@ class RunRepository:
                 (
                     final_run_id,
                     task_id,
-                    RunStatus.PENDING.value,
+                    initial_status,
                     now,
                     now,
                     None,
@@ -92,6 +94,54 @@ class RunRepository:
         run = self.get_run(final_run_id)
         assert run is not None
         return run
+
+    def update_run(
+        self,
+        run_id: str,
+        status: Optional[RunStatus] = None,
+        metadata_update: Optional[Dict[str, Any]] = None,
+        log_path: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> RunRecord:
+        """Update status, metadata, log_path or error_message of an existing RunRecord."""
+        now = utc_now_iso()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM run_records WHERE run_id = ?;", (run_id,))
+            row = cursor.fetchone()
+            if not row:
+                raise ValueError(f"Run ID '{run_id}' không tồn tại trong cơ sở dữ liệu.")
+
+            new_status = status.value if isinstance(status, RunStatus) else (str(status) if status else row["status"])
+            current_meta = json.loads(row["metadata"] or "{}")
+            if metadata_update:
+                current_meta.update(metadata_update)
+            new_log_path = log_path if log_path is not None else row["log_path"]
+            new_err = error_message if error_message is not None else row["error_message"]
+
+            cursor.execute(
+                """
+                UPDATE run_records
+                SET status = ?,
+                    updated_at = ?,
+                    metadata = ?,
+                    log_path = ?,
+                    error_message = ?
+                WHERE run_id = ?;
+                """,
+                (
+                    new_status,
+                    now,
+                    json.dumps(current_meta, ensure_ascii=False),
+                    new_log_path,
+                    new_err,
+                    run_id,
+                )
+            )
+
+        updated = self.get_run(run_id)
+        assert updated is not None
+        return updated
 
     def get_run(self, run_id: str, include_attempts: bool = True) -> Optional[RunRecord]:
         """Fetch a single Run record by ID with optional attempts."""

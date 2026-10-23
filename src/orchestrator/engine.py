@@ -67,7 +67,7 @@ class SequentialOrchestrator:
             recent_runs = repo.list_runs(limit=20)
             active_runs = [
                 r for r in recent_runs
-                if r.status in (RunStatus.PENDING, RunStatus.RUNNING)
+                if r.status in (RunStatus.PENDING, RunStatus.WAITING_FOR_HUMAN, RunStatus.RUNNING)
             ]
 
         return FactoryStatus(

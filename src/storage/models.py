@@ -13,6 +13,7 @@ def utc_now_iso() -> str:
 
 class RunStatus(str, Enum):
     PENDING = "pending"
+    WAITING_FOR_HUMAN = "waiting_for_human"
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"

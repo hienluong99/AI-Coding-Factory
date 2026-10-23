@@ -1,4 +1,4 @@
-"""CLI for AI Coding Factory Orchestrator (`factory status`, `factory next`)."""
+"""CLI for AI Coding Factory Orchestrator (`factory status`, `factory next`, `factory handoff`)."""
 
 import argparse
 import json
@@ -6,6 +6,7 @@ import sys
 from typing import List, Optional
 
 from src.beads.exceptions import BeadsError, TaskBlockedError
+from src.handoff.manager import AntigravityHandoffManager
 from .engine import SequentialOrchestrator
 from .exceptions import OrchestratorError, TaskAlreadyClaimedError
 
@@ -21,7 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="factory",
-        description="AI Coding Factory — Sequential Orchestrator CLI"
+        description="AI Coding Factory — Sequential Orchestrator & Antigravity Handoff CLI"
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -57,6 +58,76 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Định danh tiến trình/worker thực hiện claim"
     )
     next_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
+    # factory handoff
+    handoff_parser = subparsers.add_parser(
+        "handoff",
+        help="Chuẩn bị prompt, hiển thị thông tin task/branch/acceptance criteria và bàn giao cho Antigravity"
+    )
+    handoff_parser.add_argument(
+        "--task-id",
+        dest="task_id",
+        help="Chỉ định mã task cần bàn giao (mặc định tự chọn task ready tiếp theo)"
+    )
+    handoff_parser.add_argument(
+        "--owner",
+        dest="owner_id",
+        help="Định danh tiến trình/worker thực hiện claim"
+    )
+    handoff_group = handoff_parser.add_mutually_exclusive_group()
+    handoff_group.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Xác nhận đồng ý bàn giao ngay cho Antigravity"
+    )
+    handoff_group.add_argument(
+        "-n", "--no",
+        action="store_true",
+        help="Từ chối bắt đầu sau khi tạo gói chuẩn bị bàn giao"
+    )
+    handoff_group.add_argument(
+        "--wait",
+        action="store_true",
+        help="Chỉ tạo gói chuẩn bị và giữ ở trạng thái waiting_for_human để xác nhận sau"
+    )
+    handoff_parser.add_argument(
+        "--notes",
+        dest="notes",
+        help="Ghi chú của người dùng khi xác nhận bàn giao"
+    )
+    handoff_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
+    # factory confirm
+    confirm_parser = subparsers.add_parser(
+        "confirm",
+        help="Xác nhận hoặc từ chối một run đang ở trạng thái waiting_for_human"
+    )
+    confirm_parser.add_argument("run_id", help="Mã run_id đang chờ người dùng xác nhận")
+    confirm_group = confirm_parser.add_mutually_exclusive_group(required=True)
+    confirm_group.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Phê duyệt bàn giao và bắt đầu thực thi"
+    )
+    confirm_group.add_argument(
+        "-n", "--no",
+        action="store_true",
+        help="Từ chối bàn giao"
+    )
+    confirm_parser.add_argument(
+        "--notes",
+        dest="notes",
+        help="Ghi chú xác nhận"
+    )
+    confirm_parser.add_argument(
         "--json",
         action="store_true",
         help="Xuất kết quả ở định dạng JSON"
@@ -131,6 +202,57 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"      {step}")
             return 0
 
+        elif args.command == "handoff":
+            manager = AntigravityHandoffManager(orchestrator=orchestrator)
+            output_fn = (lambda _msg: None) if args.json else print
+
+            if args.wait:
+                confirm_cb = None
+            elif args.yes:
+                confirm_cb = lambda _pkt: True
+            elif args.no:
+                confirm_cb = lambda _pkt: False
+            else:
+                def _prompt_human(pkt) -> bool:
+                    ans = input(
+                        f"\n>>> Xác nhận bàn giao task '{pkt.task_id}' (nhánh '{pkt.target_branch}') "
+                        "cho Antigravity để bắt đầu? [y/N]: "
+                    ).strip().lower()
+                    return ans in ("y", "yes")
+                confirm_cb = _prompt_human
+
+            run_record, packet = manager.execute_handoff_workflow(
+                task_id=args.task_id,
+                owner_id=args.owner_id,
+                confirm_callback=confirm_cb,
+                output_fn=output_fn,
+                notes=args.notes,
+            )
+            if args.json:
+                print(json.dumps({
+                    "run": run_record.model_dump(),
+                    "handoff": packet.model_dump(),
+                }, ensure_ascii=False, indent=2))
+            return 0
+
+        elif args.command == "confirm":
+            manager = AntigravityHandoffManager(orchestrator=orchestrator)
+            approved = bool(args.yes)
+            run_record, packet = manager.record_confirmation(
+                run_id=args.run_id,
+                approved=approved,
+                notes=args.notes,
+            )
+            if args.json:
+                print(json.dumps({
+                    "run": run_record.model_dump(),
+                    "handoff": packet.model_dump(),
+                }, ensure_ascii=False, indent=2))
+            else:
+                state_str = "ĐÃ PHÊ DUYỆT & BÀN GIAO (handed_off)" if approved else "ĐÃ TỪ CHỐI (rejected)"
+                print(f"[PASS] Run '{run_record.run_id}' (Task: {packet.task_id}): {state_str} | Run status: {run_record.status.value}")
+            return 0
+
         elif args.command == "release":
             released = orchestrator.lock_manager.release_task(args.task_id)
             if released:
@@ -140,7 +262,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"[INFO] Task '{args.task_id}' hiện không bị khóa.")
                 return 0
 
-    except (TaskBlockedError, TaskAlreadyClaimedError, OrchestratorError, BeadsError) as e:
+    except (TaskBlockedError, TaskAlreadyClaimedError, OrchestratorError, BeadsError, ValueError) as e:
         print(f"[ERROR] {e}", file=sys.stderr)
         return 1
 

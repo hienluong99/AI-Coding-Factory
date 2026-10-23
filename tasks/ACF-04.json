@@ -1,0 +1,41 @@
+{
+  "id": "ACF-04",
+  "objective": "Run record và SQLite",
+  "description": "Lưu run_id, task_id, timestamps và trạng thái; lưu số lần thử, log path và kết quả kiểm thử; có migration hoặc khởi tạo schema tự động; khởi động lại Factory vẫn truy xuất được lịch sử run.",
+  "scope": {
+    "in_scope": [
+      "src/storage/*",
+      "tasks/ACF-04.json",
+      "tests/test_run_storage.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Lưu run_id, task_id, timestamps và trạng thái",
+    "Lưu số lần thử, log path và kết quả kiểm thử",
+    "Có migration hoặc khởi tạo schema tự động",
+    "Khởi động lại Factory vẫn truy xuất được lịch sử run"
+  ],
+  "test_commands": [
+    "pytest tests/test_run_storage.py"
+  ],
+  "dependencies": [
+    "ACF-01"
+  ],
+  "status": "completed"
+}

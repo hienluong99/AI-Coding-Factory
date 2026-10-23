@@ -1,0 +1,45 @@
+{
+  "id": "ACF-05",
+  "objective": "CLI và Orchestrator tuần tự",
+  "description": "Xây dựng CLI với factory status và factory next, chỉ chọn tuần tự một task chưa bị block, hỗ trợ chế độ dry-run không sửa code hoặc claim task, và có cơ chế khóa (lock) tránh hai tiến trình claim cùng một task.",
+  "scope": {
+    "in_scope": [
+      "src/orchestrator/*",
+      "src/factory.py",
+      "tasks/ACF-05.json",
+      "tests/test_orchestrator.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Có factory status và factory next",
+    "Chỉ chọn một task chưa bị block",
+    "Có dry-run để xem hành động dự kiến",
+    "Có khóa tránh hai tiến trình claim cùng một task",
+    "Chạy dry-run nhiều lần không sửa code hoặc claim task"
+  ],
+  "test_commands": [
+    "pytest tests/test_orchestrator.py"
+  ],
+  "dependencies": [
+    "ACF-02",
+    "ACF-03",
+    "ACF-04"
+  ],
+  "status": "completed"
+}

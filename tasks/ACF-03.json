@@ -1,0 +1,42 @@
+{
+  "id": "ACF-03",
+  "objective": "Tích hợp Beads CLI",
+  "description": "Khởi tạo Beads trong repository, đọc danh sách task sẵn sàng bằng JSON, lấy chi tiết và dependency của task, chặn không tự triển khai task bị block.",
+  "scope": {
+    "in_scope": [
+      "src/beads/*",
+      "tasks/ACF-03.json",
+      "tests/test_beads_client.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Khởi tạo Beads trong repository",
+    "Đọc danh sách task sẵn sàng bằng JSON",
+    "Lấy chi tiết và dependency của task",
+    "Factory đọc đúng task sẵn sàng và không tự triển khai task bị block"
+  ],
+  "test_commands": [
+    "pytest tests/test_beads_client.py"
+  ],
+  "dependencies": [
+    "ACF-01",
+    "ACF-02"
+  ],
+  "status": "completed"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "ACF-06",
+  "objective": "Bàn giao cho Antigravity",
+  "description": "Sinh prompt từ task contract và context liên quan, hiển thị rõ task, branch và tiêu chí nghiệm thu, yêu cầu người dùng xác nhận trước khi bắt đầu, và lưu trạng thái waiting_for_human cùng kết quả bàn giao mà không giả định API không được hỗ trợ.",
+  "scope": {
+    "in_scope": [
+      "src/handoff/*",
+      "src/orchestrator/*",
+      "src/storage/*",
+      "tasks/ACF-06.json",
+      "tests/test_handoff.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Sinh prompt từ task contract và context liên quan",
+    "Hiển thị rõ task, branch và tiêu chí nghiệm thu",
+    "Yêu cầu người dùng xác nhận trước khi bắt đầu",
+    "Lưu trạng thái waiting_for_human và kết quả bàn giao",
+    "Có thể giao task qua workflow rõ ràng mà không giả định API không được hỗ trợ"
+  ],
+  "test_commands": [
+    "pytest tests/test_handoff.py"
+  ],
+  "dependencies": [
+    "ACF-05"
+  ],
+  "status": "completed"
+}

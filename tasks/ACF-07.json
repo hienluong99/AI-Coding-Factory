@@ -1,0 +1,45 @@
+{
+  "id": "ACF-07",
+  "objective": "Git branch và diff guard",
+  "description": "Kiểm tra working tree trước khi chạy, tạo hoặc xác nhận branch riêng cho task, phát hiện file thay đổi ngoài phạm vi cho phép, và không tự ghi đè thay đổi của người dùng.",
+  "scope": {
+    "in_scope": [
+      "src/vcs/*",
+      "src/orchestrator/*",
+      "src/handoff/*",
+      "tasks/ACF-07.json",
+      "tests/test_git_guard.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Kiểm tra working tree trước khi chạy",
+    "Tạo hoặc xác nhận branch riêng cho task",
+    "Phát hiện file thay đổi ngoài phạm vi cho phép",
+    "Không tự ghi đè thay đổi của người dùng",
+    "Working tree bẩn hoặc diff ngoài phạm vi khiến Factory dừng an toàn"
+  ],
+  "test_commands": [
+    "pytest tests/test_git_guard.py"
+  ],
+  "dependencies": [
+    "ACF-05",
+    "ACF-06"
+  ],
+  "status": "completed"
+}

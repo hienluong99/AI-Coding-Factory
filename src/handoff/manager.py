@@ -63,6 +63,9 @@ class AntigravityHandoffManager:
         owner_id: Optional[str] = None,
     ) -> Tuple[RunRecord, HandoffPacket]:
         """Select ready task, generate Antigravity prompt, and persist `waiting_for_human` state."""
+        # STEP 1: Safeguard working tree cleanliness BEFORE any lock or branch change
+        self.orchestrator.git_guard.ensure_clean_working_tree()
+
         selected = self.orchestrator.select_next_task(target_task_id=task_id)
         if selected is None:
             raise ValueError("Không có task nào sẵn sàng (unblocked & unclaimed) để bàn giao.")
@@ -77,6 +80,11 @@ class AntigravityHandoffManager:
         )
 
         try:
+            # STEP 2: Ensure task branch exists and checkout safely
+            branch_pattern = contract.constraints.branch_pattern or "task/{id}"
+            actual_branch = self.orchestrator.git_guard.ensure_task_branch(selected.id, branch_pattern=branch_pattern)
+            context.target_branch = actual_branch
+
             repo = self.orchestrator._get_run_repo(read_only_if_missing=False)
             assert repo is not None
 
@@ -197,11 +205,12 @@ class AntigravityHandoffManager:
         notes: Optional[str] = None,
     ) -> Tuple[RunRecord, HandoffPacket]:
         """Run the full handoff workflow:
-        1. Prepare prompt & context from task contract.
-        2. Persist `waiting_for_human` state in SQLite.
-        3. Display clear summary (task, branch, acceptance criteria).
-        4. Ask human for confirmation before starting (if confirm_callback is supplied).
-        5. Persist confirmation result and transition state.
+        1. Check working tree cleanliness and safe task branch.
+        2. Prepare prompt & context from task contract.
+        3. Persist `waiting_for_human` state in SQLite.
+        4. Display clear summary (task, branch, acceptance criteria).
+        5. Ask human for confirmation before starting (if confirm_callback is supplied).
+        6. Persist confirmation result and transition state.
         """
         run_record, packet = self.prepare_handoff(task_id=task_id, owner_id=owner_id)
         summary_text = format_handoff_display(packet)

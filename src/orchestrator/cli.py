@@ -9,6 +9,7 @@ from src.beads.exceptions import BeadsError, TaskBlockedError
 from src.handoff.manager import AntigravityHandoffManager
 from src.vcs.exceptions import DirtyWorkingTreeError, GitGuardError, OutOfScopeDiffError
 from .engine import SequentialOrchestrator
+from src.delivery.exceptions import DeliveryError
 from .exceptions import OrchestratorError, TaskAlreadyClaimedError
 
 # Ensure UTF-8 output on Windows consoles
@@ -195,6 +196,42 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     fix_parser.add_argument("run_id", help="Mã Run ID cần phân tích lỗi và sửa chữa")
     fix_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
+    # factory pr / delivery
+    pr_parser = subparsers.add_parser(
+        "pr",
+        aliases=["delivery"],
+        help="Đóng gói bàn giao, tạo Conventional Commit và Pull Request"
+    )
+    pr_parser.add_argument("task_id", help="Mã task contract cần đóng gói bàn giao (vd: ACF-10)")
+    pr_parser.add_argument(
+        "--run-id",
+        dest="run_id",
+        help="Mã Run ID tương ứng (tùy chọn)"
+    )
+    pr_parser.add_argument(
+        "--base",
+        dest="base_branch",
+        default="main",
+        help="Nhánh đích của PR (mặc định: main)"
+    )
+    pr_parser.add_argument(
+        "--no-push",
+        dest="no_push",
+        action="store_true",
+        help="Không đẩy nhánh lên git remote"
+    )
+    pr_parser.add_argument(
+        "--local",
+        dest="local_only",
+        action="store_true",
+        help="Chỉ tạo gói bundle bàn giao cục bộ, bỏ qua gọi GitHub API"
+    )
+    pr_parser.add_argument(
         "--json",
         action="store_true",
         help="Xuất kết quả ở định dạng JSON"
@@ -402,6 +439,32 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"  - Báo cáo sự cố:    {decision.diagnostic_report_path}", file=sys.stderr)
                 return 1
 
+        elif args.command in ("pr", "delivery"):
+            pkg = orchestrator.deliver_task_pr(
+                task_id=args.task_id,
+                run_id=args.run_id,
+                base_branch=args.base_branch,
+                push_to_remote=not args.no_push,
+                skip_remote_api=args.local_only,
+            )
+            if args.json:
+                print(json.dumps(pkg.model_dump(), ensure_ascii=False, indent=2))
+                return 0
+
+            status_str = "GITHUB PULL REQUEST" if pkg.status.value == "created" else "LOCAL DELIVERY BUNDLE"
+            print(f"[PASS] Đóng gói bàn giao thành công ({status_str})!")
+            print(f"  - Task ID:        {pkg.task_id}")
+            print(f"  - Run ID:         {pkg.run_id}")
+            print(f"  - Tiêu đề PR:     {pkg.title}")
+            print(f"  - Nhánh:          {pkg.branch} -> {pkg.base_branch}")
+            if pkg.commit_sha:
+                print(f"  - Commit SHA:     {pkg.commit_sha[:8]}")
+            if pkg.pr_url:
+                print(f"  - GitHub PR:      {pkg.pr_url}")
+            print(f"  - Summary report: {pkg.summary_artifact_path}")
+            print(f"  - Package JSON:   {pkg.json_artifact_path}")
+            return 0
+
         elif args.command == "release":
             released = orchestrator.lock_manager.release_task(args.task_id)
             if released:
@@ -418,6 +481,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         TaskBlockedError,
         TaskAlreadyClaimedError,
         OrchestratorError,
+        DeliveryError,
         BeadsError,
         ValueError
     ) as e:

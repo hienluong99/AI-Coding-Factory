@@ -11,6 +11,8 @@ from src.contracts.parser import parse_task_file
 from src.contracts.task import TaskContract
 from src.storage.models import RunRecord, RunStatus
 from src.storage.repository import RunRepository
+from src.vcs.git_guard import GitGuard
+from src.vcs.models import DiffScopeResult
 
 from .exceptions import OrchestratorError, TaskAlreadyClaimedError
 from .lock import TaskLockManager
@@ -18,7 +20,7 @@ from .models import FactoryStatus, NextActionPlan
 
 
 class SequentialOrchestrator:
-    """Orchestrates sequential task selection, locking, dry-run planning, and execution."""
+    """Orchestrates sequential task selection, locking, dry-run planning, git guarding, and execution."""
 
     def __init__(
         self,
@@ -26,6 +28,7 @@ class SequentialOrchestrator:
         beads_client: Optional[BeadsClient] = None,
         run_repo: Optional[RunRepository] = None,
         lock_manager: Optional[TaskLockManager] = None,
+        git_guard: Optional[GitGuard] = None,
         tasks_dir: Optional[Union[str, Path]] = None,
         db_path: Optional[Union[str, Path]] = None,
     ):
@@ -37,6 +40,7 @@ class SequentialOrchestrator:
         self.lock_manager = lock_manager or TaskLockManager(
             lock_dir=self.workspace_dir / "runs" / "locks"
         )
+        self.git_guard = git_guard or GitGuard(repo_dir=self.workspace_dir)
 
     def _get_run_repo(self, read_only_if_missing: bool = False) -> Optional[RunRepository]:
         """Return RunRepository instance. Avoids creating DB file on disk if read_only_if_missing=True."""
@@ -126,11 +130,13 @@ class SequentialOrchestrator:
         test_commands = contract.test_commands if contract else ["pytest"]
 
         planned_actions = [
-            f"1. [Lock] Khóa và claim độc quyền task '{task.id}' (tránh tiến trình khác xử lý trùng)",
-            f"2. [Branch] Kiểm tra và chuyển sang nhánh làm việc '{target_branch}'",
-            f"3. [RunRecord] Khởi tạo bản ghi RunRecord trong SQLite cho task '{task.id}'",
-            f"4. [Agent] Giao task '{task.id}' ({task.title}) cho AI Coding Agent trong phạm vi: {', '.join(in_scope)}",
-            f"5. [QualityGate] Chạy kiểm thử nghiệm thu: {', '.join(test_commands)}",
+            f"1. [Guard] Kiểm tra working tree sạch (bảo vệ, không ghi đè thay đổi chưa commit của người dùng)",
+            f"2. [Lock] Khóa và claim độc quyền task '{task.id}' (tránh tiến trình khác xử lý trùng)",
+            f"3. [Branch] Tạo hoặc xác nhận chuyển sang nhánh riêng '{target_branch}'",
+            f"4. [RunRecord] Khởi tạo bản ghi RunRecord trong SQLite cho task '{task.id}'",
+            f"5. [Agent] Giao task '{task.id}' ({task.title}) cho AI Coding Agent trong phạm vi: {', '.join(in_scope)}",
+            f"6. [DiffGuard] Kiểm tra toàn bộ diff đảm bảo không vi phạm ngoài phạm vi (out-of-scope)",
+            f"7. [QualityGate] Chạy kiểm thử nghiệm thu: {', '.join(test_commands)}",
         ]
 
         mode_prefix = "[DRY-RUN] Dự kiến" if dry_run else "[EXECUTED] Đã claim và khởi tạo"
@@ -151,6 +157,27 @@ class SequentialOrchestrator:
             message=message,
         )
 
+    def validate_task_diff(
+        self,
+        task_id: str,
+        base_ref: Optional[str] = "main"
+    ) -> DiffScopeResult:
+        """Strictly validate changed files against task contract in_scope and out_of_scope.
+        
+        Raises:
+            OutOfScopeDiffError: If diff touches forbidden files or files outside in-scope.
+        """
+        contract = self.load_task_contract(task_id)
+        in_scope = contract.scope.in_scope if contract else ["src/*", "tests/*"]
+        out_of_scope = contract.scope.out_of_scope if contract else [".env", ".env.*", "*.pem", "*.key"]
+
+        return self.git_guard.ensure_diff_in_scope(
+            in_scope=in_scope,
+            out_of_scope=out_of_scope,
+            base_ref=base_ref,
+            task_id=task_id
+        )
+
     def next_task(
         self,
         dry_run: bool = False,
@@ -162,10 +189,13 @@ class SequentialOrchestrator:
         When dry_run=True:
             - Does NOT claim or lock the task.
             - Does NOT write to SQLite or modify any code/files.
+            - Does NOT switch branches.
             - Can be executed repeatedly without side effects.
 
         When dry_run=False:
-            - Atomically locks the task via TaskLockManager (preventing concurrent claims).
+            - Checks working tree cleanliness (fails safely if dirty, preserving user changes).
+            - Atomically locks the task via TaskLockManager.
+            - Creates/switches to task branch.
             - Creates a RunRecord in SQLite.
         """
         selected = self.select_next_task(target_task_id=task_id)
@@ -181,16 +211,25 @@ class SequentialOrchestrator:
         plan = self._build_action_plan(selected, contract, dry_run=dry_run)
 
         if dry_run:
-            # Strictly no state mutation, no lock creation, no DB record creation
+            # Strictly no state mutation, no lock creation, no DB record creation, no branch checkout
             return plan
 
-        # Real execution: Atomically acquire exclusive task lock first
+        # STEP 1: Guard working tree cleanliness BEFORE any lock or branch change
+        self.git_guard.ensure_clean_working_tree()
+
+        # STEP 2: Atomically acquire exclusive task lock
         claim = self.lock_manager.claim_task(
             task_id=selected.id,
             owner_id=owner_id,
         )
 
         try:
+            # STEP 3: Ensure task branch exists and checkout safely
+            branch_pattern = contract.constraints.branch_pattern if (contract and contract.constraints.branch_pattern) else "task/{id}"
+            actual_branch = self.git_guard.ensure_task_branch(selected.id, branch_pattern=branch_pattern)
+            plan.target_branch = actual_branch
+
+            # STEP 4: Create SQLite run record
             repo = self._get_run_repo(read_only_if_missing=False)
             assert repo is not None
             max_attempts = contract.constraints.max_attempts if (contract and hasattr(contract.constraints, "max_attempts")) else (
@@ -201,7 +240,7 @@ class SequentialOrchestrator:
                 max_attempts=max_attempts,
                 metadata={
                     "title": selected.title,
-                    "target_branch": plan.target_branch,
+                    "target_branch": actual_branch,
                     "claimed_by": claim.owner_id,
                     "pid": claim.pid,
                 }
@@ -210,6 +249,6 @@ class SequentialOrchestrator:
             plan.run_id = run_record.run_id
             return plan
         except Exception:
-            # Rollback lock if DB creation failed
+            # Rollback lock if operation failed
             self.lock_manager.release_task(selected.id, owner_id=claim.owner_id)
             raise

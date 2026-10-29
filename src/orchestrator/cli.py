@@ -1,4 +1,4 @@
-"""CLI for AI Coding Factory Orchestrator (`factory status`, `factory next`, `factory handoff`)."""
+"""CLI for AI Coding Factory Orchestrator (`factory status`, `factory next`, `factory handoff`, `factory guard`)."""
 
 import argparse
 import json
@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from src.beads.exceptions import BeadsError, TaskBlockedError
 from src.handoff.manager import AntigravityHandoffManager
+from src.vcs.exceptions import DirtyWorkingTreeError, GitGuardError, OutOfScopeDiffError
 from .engine import SequentialOrchestrator
 from .exceptions import OrchestratorError, TaskAlreadyClaimedError
 
@@ -22,7 +23,7 @@ if hasattr(sys.stdout, "reconfigure"):
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="factory",
-        description="AI Coding Factory — Sequential Orchestrator & Antigravity Handoff CLI"
+        description="AI Coding Factory — Sequential Orchestrator & Git Guard CLI"
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -128,6 +129,28 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Ghi chú xác nhận"
     )
     confirm_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
+    # factory guard
+    guard_parser = subparsers.add_parser(
+        "guard",
+        help="Kiểm tra working tree và kiểm tra phạm vi diff (diff scope guard)"
+    )
+    guard_parser.add_argument(
+        "--task-id",
+        dest="task_id",
+        help="Mã task để kiểm tra diff so với in_scope và out_of_scope"
+    )
+    guard_parser.add_argument(
+        "--base",
+        dest="base_ref",
+        default="main",
+        help="Nhánh hoặc ref gốc để so sánh diff (mặc định: main)"
+    )
+    guard_parser.add_argument(
         "--json",
         action="store_true",
         help="Xuất kết quả ở định dạng JSON"
@@ -253,6 +276,31 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"[PASS] Run '{run_record.run_id}' (Task: {packet.task_id}): {state_str} | Run status: {run_record.status.value}")
             return 0
 
+        elif args.command == "guard":
+            # Check working tree
+            tree_status = orchestrator.git_guard.get_working_tree_status()
+            if not tree_status.is_clean:
+                raise DirtyWorkingTreeError(
+                    dirty_files=tree_status.file_paths,
+                    current_branch=tree_status.current_branch
+                )
+
+            diff_result = None
+            if args.task_id:
+                diff_result = orchestrator.validate_task_diff(args.task_id, base_ref=args.base_ref)
+
+            if args.json:
+                print(json.dumps({
+                    "working_tree": tree_status.model_dump(),
+                    "diff_result": diff_result.model_dump() if diff_result else None
+                }, ensure_ascii=False, indent=2))
+                return 0
+
+            print(f"[PASS] Working tree sạch sẽ trên nhánh '{tree_status.current_branch}'.")
+            if diff_result:
+                print(f"[PASS] {diff_result.summary}")
+            return 0
+
         elif args.command == "release":
             released = orchestrator.lock_manager.release_task(args.task_id)
             if released:
@@ -262,7 +310,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"[INFO] Task '{args.task_id}' hiện không bị khóa.")
                 return 0
 
-    except (TaskBlockedError, TaskAlreadyClaimedError, OrchestratorError, BeadsError, ValueError) as e:
+    except (
+        DirtyWorkingTreeError,
+        OutOfScopeDiffError,
+        GitGuardError,
+        TaskBlockedError,
+        TaskAlreadyClaimedError,
+        OrchestratorError,
+        BeadsError,
+        ValueError
+    ) as e:
         print(f"[ERROR] {e}", file=sys.stderr)
         return 1
 

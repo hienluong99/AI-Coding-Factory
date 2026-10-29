@@ -1,0 +1,44 @@
+{
+  "id": "ACF-10",
+  "objective": "Đóng gói bàn giao và tự động hóa Pull Request",
+  "description": "Kiểm tra diff scope và Quality Gate PASS, tự động tạo Git commit chuẩn Conventional Commits, sinh PR body chuẩn AGENTS.md, tạo Pull Request lên GitHub (hoặc PR bundle cục bộ), và lưu vết vào SQLite RunRecord.",
+  "scope": {
+    "in_scope": [
+      "src/delivery/*",
+      "src/orchestrator/*",
+      "tasks/ACF-10.json",
+      "tests/test_delivery_pr.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Chỉ tạo commit và PR khi Quality Gate đạt 100% và diff nằm trong phạm vi in-scope",
+    "Tự động tạo Git commit tuân thủ định dạng Conventional Commits",
+    "Sinh nội dung PR description đầy đủ tiêu chí nghiệm thu và tóm tắt theo AGENTS.md",
+    "Tạo Pull Request qua GitHub API (hoặc tạo PR bundle cục bộ khi không có mạng/token)",
+    "Cập nhật thông tin PR (URL, commit SHA, trạng thái) vào SQLite và lưu artifact tại runs/<run_id>/"
+  ],
+  "test_commands": [
+    "pytest tests/test_delivery_pr.py"
+  ],
+  "dependencies": [
+    "ACF-07",
+    "ACF-08"
+  ],
+  "status": "completed"
+}

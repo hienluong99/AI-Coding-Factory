@@ -218,6 +218,31 @@ class SequentialOrchestrator:
         )
         return engine.evaluate_run(run_id=run_id, quality_summary=quality_summary)
 
+    def deliver_task_pr(
+        self,
+        task_id: str,
+        run_id: Optional[str] = None,
+        base_branch: str = "main",
+        push_to_remote: bool = True,
+        skip_remote_api: bool = False,
+    ):
+        """Package delivery and dispatch Pull Request."""
+        from src.delivery.pr_manager import PullRequestManager
+        manager = PullRequestManager(
+            repo_root=self.workspace_dir,
+            run_repo=self._get_run_repo(),
+            git_guard=self.git_guard,
+            runs_dir=self.workspace_dir / "runs",
+            tasks_dir=self.tasks_dir,
+        )
+        return manager.package_and_deliver(
+            task_id=task_id,
+            run_id=run_id,
+            base_branch=base_branch,
+            push_to_remote=push_to_remote,
+            skip_remote_api=skip_remote_api,
+        )
+
     def next_task(
         self,
         dry_run: bool = False,

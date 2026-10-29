@@ -1,0 +1,44 @@
+{
+  "id": "ACF-08",
+  "objective": "Automated Quality Gates Runner",
+  "description": "Thực thi toàn bộ test_commands tự động với giới hạn timeout, bắt luồng stdout/stderr, lưu log file riêng theo từng attempt, parse kết quả thành TestResultRecord, và lưu vào SQLite RunRepository.",
+  "scope": {
+    "in_scope": [
+      "src/quality/*",
+      "src/orchestrator/*",
+      "tasks/ACF-08.json",
+      "tests/test_quality_runner.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Thực thi danh sách test_commands từ TaskContract với timeout an toàn",
+    "Bắt streaming output stdout/stderr và ghi nhận mã exit code, thời lượng",
+    "Tạo log file riêng biệt cho từng attempt tại runs/<run_id>/attempt_<N>_quality_gate.log",
+    "Phân tích cú pháp summary kết quả kiểm thử thành TestResultRecord",
+    "Ghi nhận kết quả và cập nhật trạng thái attempt vào SQLite thông qua RunRepository"
+  ],
+  "test_commands": [
+    "pytest tests/test_quality_runner.py"
+  ],
+  "dependencies": [
+    "ACF-04",
+    "ACF-07"
+  ],
+  "status": "completed"
+}

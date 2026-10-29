@@ -156,6 +156,37 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Xuất kết quả ở định dạng JSON"
     )
 
+    # factory quality / test
+    quality_parser = subparsers.add_parser(
+        "quality",
+        aliases=["test"],
+        help="Thực thi Quality Gates (test_commands) tự động, stream log và ghi nhận attempt"
+    )
+    quality_parser.add_argument("task_id", help="Mã task contract cần kiểm thử (vd: ACF-08)")
+    quality_parser.add_argument(
+        "--run-id",
+        dest="run_id",
+        help="Mã Run ID để gắn bản ghi attempt trong SQLite (tùy chọn)"
+    )
+    quality_parser.add_argument(
+        "--timeout",
+        dest="timeout",
+        type=int,
+        default=None,
+        help="Giới hạn thời gian tối đa mỗi câu lệnh tính bằng giây"
+    )
+    quality_parser.add_argument(
+        "--no-record",
+        dest="no_record",
+        action="store_true",
+        help="Không ghi nhận kết quả attempt vào SQLite"
+    )
+    quality_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
     # factory release
     release_parser = subparsers.add_parser(
         "release",
@@ -299,6 +330,38 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"[PASS] Working tree sạch sẽ trên nhánh '{tree_status.current_branch}'.")
             if diff_result:
                 print(f"[PASS] {diff_result.summary}")
+            return 0
+
+        elif args.command in ("quality", "test"):
+            if not args.json:
+                print(f"--> Bắt đầu chạy Quality Gates cho task '{args.task_id}'...")
+            summary = orchestrator.run_quality_gates(
+                task_id=args.task_id,
+                run_id=args.run_id,
+                timeout=args.timeout,
+                record_in_db=not args.no_record,
+            )
+            if args.json:
+                print(json.dumps(summary.model_dump(), ensure_ascii=False, indent=2))
+                return 0 if summary.passed else 1
+
+            status_tag = "[PASS]" if summary.passed else "[FAIL]"
+            print(f"\n{status_tag} Kết quả Quality Gates: {summary.status.value.upper()}")
+            print(f"  - Task ID:         {summary.task_id}")
+            print(f"  - Run ID:          {summary.run_id}")
+            print(f"  - Attempt:         #{summary.attempt_number}")
+            print(f"  - Số lệnh passed:  {summary.passed_commands}/{summary.total_commands}")
+            print(f"  - Thời lượng:      {summary.total_duration_seconds}s")
+            print(f"  - Log file:        {summary.log_path}")
+
+            for idx, cmd_res in enumerate(summary.command_results, 1):
+                cmd_tag = "[OK]" if cmd_res.passed else "[FAIL]"
+                print(f"    {cmd_tag} [CMD {idx}] {cmd_res.command} -> {cmd_res.summary} ({cmd_res.duration_seconds}s)")
+
+            if not summary.passed:
+                if summary.error_message:
+                    print(f"\nChi tiết lỗi: {summary.error_message}", file=sys.stderr)
+                return 1
             return 0
 
         elif args.command == "release":

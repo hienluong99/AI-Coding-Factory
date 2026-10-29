@@ -9,6 +9,8 @@ from src.beads.exceptions import TaskBlockedError
 from src.beads.models import BeadsTask
 from src.contracts.parser import parse_task_file
 from src.contracts.task import TaskContract
+from src.quality.models import QualityGateSummary
+from src.quality.runner import QualityGateRunner
 from src.storage.models import RunRecord, RunStatus
 from src.storage.repository import RunRepository
 from src.vcs.git_guard import GitGuard
@@ -176,6 +178,29 @@ class SequentialOrchestrator:
             out_of_scope=out_of_scope,
             base_ref=base_ref,
             task_id=task_id
+        )
+
+    def run_quality_gates(
+        self,
+        task_id: str,
+        run_id: Optional[str] = None,
+        timeout: Optional[int] = None,
+        record_in_db: bool = True,
+    ) -> QualityGateSummary:
+        """Execute automated quality gate test commands for a task and record the attempt."""
+        contract = self.load_task_contract(task_id)
+        if not contract:
+            raise OrchestratorError(f"Không tìm thấy task contract cho task '{task_id}'.")
+        runner = QualityGateRunner(
+            repo_root=self.workspace_dir,
+            run_repo=self._get_run_repo(),
+            runs_dir=self.workspace_dir / "runs",
+        )
+        return runner.run_quality_gate(
+            task_contract=contract,
+            run_id=run_id,
+            timeout_per_command=timeout,
+            record_in_db=record_in_db,
         )
 
     def next_task(

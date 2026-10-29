@@ -1,0 +1,44 @@
+{
+  "id": "ACF-09",
+  "objective": "Cơ chế tự sửa lỗi (Self-Correction Engine) và xử lý Blocked",
+  "description": "Tự động phân tích nguyên nhân lỗi kiểm thử từ Quality Gate, sinh prompt sửa lỗi chuyên biệt có giới hạn lượt (MAX_FIX_ATTEMPTS), và chuyển trạng thái BLOCKED khi chạm ngưỡng kèm báo cáo chẩn đoán.",
+  "scope": {
+    "in_scope": [
+      "src/correction/*",
+      "src/orchestrator/*",
+      "tasks/ACF-09.json",
+      "tests/test_self_correction.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Tự động phân tích lỗi kiểm thử và trích xuất nguyên nhân thất bại (Root Cause)",
+    "Sinh prompt sửa lỗi chuyên biệt kèm thông tin test failure, vị trí file và phạm vi in-scope",
+    "Giới hạn số lần sửa nghiêm ngặt theo max_fix_attempts (tối đa 3 lần), không lặp vô hạn",
+    "Tự động chuyển trạng thái RunRecord sang BLOCKED và tạo báo cáo chẩn đoán khi hết lượt thử",
+    "Lưu vết chẩn đoán và prompt vào SQLite và thư mục runs/<run_id>/"
+  ],
+  "test_commands": [
+    "pytest tests/test_self_correction.py"
+  ],
+  "dependencies": [
+    "ACF-06",
+    "ACF-08"
+  ],
+  "status": "completed"
+}

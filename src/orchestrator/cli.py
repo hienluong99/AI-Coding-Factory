@@ -187,6 +187,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Xuất kết quả ở định dạng JSON"
     )
 
+    # factory fix / correct
+    fix_parser = subparsers.add_parser(
+        "fix",
+        aliases=["correct"],
+        help="Phân tích lỗi kiểm thử, sinh prompt tự sửa lỗi hoặc đánh dấu BLOCKED"
+    )
+    fix_parser.add_argument("run_id", help="Mã Run ID cần phân tích lỗi và sửa chữa")
+    fix_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
     # factory release
     release_parser = subparsers.add_parser(
         "release",
@@ -363,6 +376,31 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(f"\nChi tiết lỗi: {summary.error_message}", file=sys.stderr)
                 return 1
             return 0
+
+        elif args.command in ("fix", "correct"):
+            decision = orchestrator.evaluate_correction(run_id=args.run_id)
+            if args.json:
+                print(json.dumps(decision.model_dump(), ensure_ascii=False, indent=2))
+                return 0 if decision.passed or decision.action.value == "retry_fix" else 1
+
+            if decision.passed:
+                print(f"[PASS] {decision.message}")
+                return 0
+
+            if decision.action.value == "retry_fix":
+                print(f"[RETRY_FIX] {decision.message}")
+                print(f"  - Run ID:           {decision.run_id}")
+                print(f"  - Lần thử:          #{decision.attempt_number}/{decision.max_attempts}")
+                print(f"  - Số lỗi phát hiện: {len(decision.failures)}")
+                print(f"  - Fix prompt file:  {decision.fix_prompt_path}")
+                print(f"\n--> Agent hãy đọc file '{decision.fix_prompt_path}' để tiến hành sửa lỗi theo phạm vi in-scope.")
+                return 0
+            else:
+                print(f"[BLOCKED] {decision.message}", file=sys.stderr)
+                print(f"  - Run ID:           {decision.run_id}", file=sys.stderr)
+                print(f"  - Lần thử:          #{decision.attempt_number}/{decision.max_attempts}", file=sys.stderr)
+                print(f"  - Báo cáo sự cố:    {decision.diagnostic_report_path}", file=sys.stderr)
+                return 1
 
         elif args.command == "release":
             released = orchestrator.lock_manager.release_task(args.task_id)

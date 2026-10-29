@@ -203,6 +203,21 @@ class SequentialOrchestrator:
             record_in_db=record_in_db,
         )
 
+    def evaluate_correction(
+        self,
+        run_id: str,
+        quality_summary: Optional[QualityGateSummary] = None,
+    ):
+        """Evaluate self-correction or blocked state for a given run."""
+        from src.correction.engine import SelfCorrectionEngine
+        engine = SelfCorrectionEngine(
+            repo_root=self.workspace_dir,
+            run_repo=self._get_run_repo(),
+            runs_dir=self.workspace_dir / "runs",
+            tasks_dir=self.tasks_dir,
+        )
+        return engine.evaluate_run(run_id=run_id, quality_summary=quality_summary)
+
     def next_task(
         self,
         dry_run: bool = False,

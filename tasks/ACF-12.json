@@ -1,0 +1,46 @@
+{
+  "id": "ACF-12",
+  "objective": "Auto-Pilot Orchestrator Loop (Dây Chuyền Tự Hành Nhà Máy Phần Mềm)",
+  "description": "Tích hợp toàn bộ các module thành chế độ chạy dây chuyền tự hành liên tục, tự động chọn task sẵn sàng, kiểm tra Git guard, bàn giao handoff, chạy Quality Gate, kích hoạt Self-Correction khi cần, tạo PR và auto-merge khép kín theo đồ thị DAG, kèm Dashboard trực quan giám sát toàn nhà máy.",
+  "scope": {
+    "in_scope": [
+      "src/autopilot/*",
+      "src/orchestrator/*",
+      "tasks/ACF-12.json",
+      "tests/test_autopilot.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Nhà máy có thể tự động chạy chu trình khép kín xuyên suốt một hoặc nhiều task trong DAG (Guard -> Lock -> Branch -> Handoff -> Quality Gate -> PR -> Merge -> Close Task)",
+    "Hỗ trợ chế độ Auto-Pilot với cờ cấu hình linh hoạt (max_tasks, auto_approve_review, stop_on_blocked, base_branch)",
+    "Tự động xử lý khi Quality Gate trượt thông qua Self-Correction Engine và dừng an toàn khi chạm ngưỡng max_attempts",
+    "Cung cấp Dashboard trực quan hiển thị số liệu toàn nhà máy (DAG progress, active locks, run history) hỗ trợ cả text và JSON",
+    "Tích hợp các lệnh CLI 'factory auto-pilot' và 'factory dashboard' đầy đủ"
+  ],
+  "test_commands": [
+    "pytest tests/test_autopilot.py"
+  ],
+  "dependencies": [
+    "ACF-08",
+    "ACF-09",
+    "ACF-10",
+    "ACF-11"
+  ],
+  "status": "completed"
+}

@@ -285,6 +285,70 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     release_parser.add_argument("task_id", help="Mã task cần giải phóng khóa")
 
+    # factory dashboard
+    dashboard_parser = subparsers.add_parser(
+        "dashboard",
+        help="Hiển thị bảng điều khiển trung tâm (metrics, DAG progress, active locks, runs)"
+    )
+    dashboard_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
+    # factory auto-pilot / loop / run-all
+    autopilot_parser = subparsers.add_parser(
+        "auto-pilot",
+        aliases=["loop", "run-all"],
+        help="Chạy dây chuyền tự hành khép kín toàn bộ đồ thị task DAG"
+    )
+    autopilot_parser.add_argument(
+        "--max-tasks",
+        type=int,
+        default=None,
+        help="Số lượng task tối đa thực thi trong phiên"
+    )
+    autopilot_parser.add_argument(
+        "--task-ids",
+        nargs="*",
+        default=None,
+        help="Danh sách các mã task cụ thể cần thực thi tuần tự"
+    )
+    autopilot_parser.add_argument(
+        "--require-review", "--no-auto-review",
+        dest="no_auto_review",
+        action="store_true",
+        help="Dừng lại chờ human review sau khi tạo PR, không tự động merge"
+    )
+    autopilot_parser.add_argument(
+        "--continue-on-blocked",
+        dest="continue_on_blocked",
+        action="store_true",
+        help="Tiếp tục các task độc lập khác nếu có task bị BLOCKED"
+    )
+    autopilot_parser.add_argument(
+        "--base",
+        dest="base_branch",
+        default="main",
+        help="Nhánh gốc để merge (mặc định: main)"
+    )
+    autopilot_parser.add_argument(
+        "--push",
+        dest="push",
+        action="store_true",
+        help="Đẩy các commit và nhánh lên git remote"
+    )
+    autopilot_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Chỉ mô phỏng lộ trình task, không thực thi thật hoặc sửa đổi state"
+    )
+    autopilot_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
     args = parser.parse_args(argv)
     if not args.command:
         parser.print_help()
@@ -560,6 +624,54 @@ def main(argv: Optional[List[str]] = None) -> int:
             else:
                 print(f"[INFO] Task '{args.task_id}' hiện không bị khóa.")
                 return 0
+
+        elif args.command == "dashboard":
+            renderer = orchestrator.get_dashboard()
+            if args.json:
+                print(json.dumps(renderer.render_json(), ensure_ascii=False, indent=2))
+            else:
+                print(renderer.render_text())
+            return 0
+
+        elif args.command in ("auto-pilot", "loop", "run-all"):
+            from src.autopilot.models import AutoPilotConfig
+            cfg = AutoPilotConfig(
+                max_tasks=args.max_tasks,
+                target_task_ids=args.task_ids,
+                auto_approve_handoff=True,
+                auto_approve_review=not args.no_auto_review,
+                stop_on_blocked=not args.continue_on_blocked,
+                base_branch=args.base_branch,
+                push_to_remote=args.push,
+                dry_run=args.dry_run,
+            )
+            result = orchestrator.run_auto_pilot(config=cfg)
+
+            if args.json:
+                print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
+                return 0 if result.status in ("completed", "dry_run", "no_ready_tasks") else 1
+
+            print(f"=== KẾT QUẢ AUTO-PILOT LOOP ({result.status.upper()}) ===")
+            print(f"Trạng thái:            {result.message}")
+            print(f"Thời gian:             {result.duration_seconds}s")
+            print(f"Tổng số task xử lý:    {result.total_tasks_processed}")
+            print(f"Thành công:            {len(result.successful_tasks)} ({', '.join(result.successful_tasks) if result.successful_tasks else 'None'})")
+            if result.blocked_tasks:
+                print(f"Bị chặn (Blocked):     {len(result.blocked_tasks)} ({', '.join(result.blocked_tasks)})")
+            if result.pending_review_tasks:
+                print(f"Chờ Review:            {len(result.pending_review_tasks)} ({', '.join(result.pending_review_tasks)})")
+            
+            if result.task_results:
+                print("-" * 60)
+                print("Chi tiết từng task:")
+                for r in result.task_results:
+                    icon = "[OK]" if r.status in ("success", "dry_run") else ("[BLOCKED]" if r.status == "blocked" else "[WARN]")
+                    merge_info = " (Merged & Closed)" if r.merged else ""
+                    print(f"  {icon} {r.task_id} -> status: {r.status}{merge_info} | attempts: {r.attempts} | {r.duration_seconds}s")
+                    if r.error_message:
+                        print(f"      Lỗi: {r.error_message}")
+            print("=" * 60)
+            return 0 if result.status in ("completed", "dry_run", "no_ready_tasks") else 1
 
     except (
         DirtyWorkingTreeError,

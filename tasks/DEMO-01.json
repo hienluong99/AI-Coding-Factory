@@ -5,6 +5,7 @@
   "scope": {
     "in_scope": [
       "src/version.py",
+      "src/vcs/*",
       "tests/test_version.py",
       "tasks/DEMO-01.json"
     ],

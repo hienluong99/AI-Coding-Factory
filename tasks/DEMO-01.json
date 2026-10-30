@@ -1,0 +1,37 @@
+{
+  "id": "DEMO-01",
+  "objective": "Thêm module tiện ích phiên bản hệ thống (Version Info)",
+  "description": "Cung cấp hàm get_version() trả về phiên bản hiện hành của AI Coding Factory và kiểm thử tự động.",
+  "scope": {
+    "in_scope": [
+      "src/version.py",
+      "tests/test_version.py",
+      "tasks/DEMO-01.json"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 60,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Hàm get_version() trả về chuỗi phiên bản '1.0.0'",
+    "Toàn bộ kiểm thử unit test trong test_version.py vượt qua"
+  ],
+  "test_commands": [
+    "pytest tests/test_version.py"
+  ],
+  "dependencies": [],
+  "status": "ready"
+}

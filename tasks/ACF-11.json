@@ -1,0 +1,44 @@
+{
+  "id": "ACF-11",
+  "objective": "Human-in-the-loop: Review, Phê Duyệt & Merge Tự Động",
+  "description": "Cung cấp lệnh CLI để con người review kết quả (diff, PR, test log), phê duyệt (Approve) tự động merge nhánh và đóng task trong Beads, hoặc yêu cầu sửa đổi (Request Changes) kèm feedback quay lại vòng lặp self-correction.",
+  "scope": {
+    "in_scope": [
+      "src/beads/*",
+      "src/review/*",
+      "src/orchestrator/*",
+      "tasks/ACF-11.json",
+      "tests/test_review_manager.py"
+    ],
+    "out_of_scope": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key"
+    ]
+  },
+  "constraints": {
+    "max_fix_attempts": 3,
+    "timeout_seconds": 600,
+    "forbidden_commands": [
+      "rm -rf /",
+      "git push -f",
+      "format"
+    ],
+    "branch_pattern": "task/{id}"
+  },
+  "acceptance_criteria": [
+    "Hiển thị đầy đủ thông tin review trực quan gồm diff changes, PR status và kết quả Quality Gate",
+    "Phê duyệt (Approve) tự động merge nhánh task vào nhánh base (main), giải phóng task lock và đóng task trong Beads",
+    "Yêu cầu sửa (Request Changes / Reject) ghi nhận feedback và kích hoạt vòng lặp self-correction với fix prompt mới",
+    "Cập nhật chính xác trạng thái review và lịch sử phê duyệt vào SQLite RunRecord"
+  ],
+  "test_commands": [
+    "pytest tests/test_review_manager.py"
+  ],
+  "dependencies": [
+    "ACF-03",
+    "ACF-10"
+  ],
+  "status": "completed"
+}

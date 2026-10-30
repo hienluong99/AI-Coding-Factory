@@ -261,6 +261,10 @@ class GitGuard:
 
         return False
 
+    def _matches_any_pattern(self, file_path: str, patterns: list) -> bool:
+        """Check if file_path matches any pattern in patterns."""
+        return any(self.match_path_pattern(file_path, pat) for pat in patterns)
+
     def validate_diff_scope(
         self,
         changed_files: List[str],

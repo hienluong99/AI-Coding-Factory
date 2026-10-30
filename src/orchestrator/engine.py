@@ -269,6 +269,20 @@ class SequentialOrchestrator:
         else:
             return manager.get_review_summary(task_id)
 
+    def run_auto_pilot(self, config=None):
+        """Execute autonomous end-to-end Auto-Pilot loop across the DAG."""
+        from src.autopilot.engine import AutoPilotEngine
+        engine = AutoPilotEngine(
+            workspace_dir=self.workspace_dir,
+            orchestrator=self,
+        )
+        return engine.run(config=config)
+
+    def get_dashboard(self):
+        """Retrieve the central Factory Dashboard renderer."""
+        from src.autopilot.dashboard import DashboardRenderer
+        return DashboardRenderer(orchestrator=self)
+
     def next_task(
         self,
         dry_run: bool = False,

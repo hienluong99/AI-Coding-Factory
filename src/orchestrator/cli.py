@@ -237,6 +237,47 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Xuất kết quả ở định dạng JSON"
     )
 
+    # factory review
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Xem xét, phê duyệt & auto-merge hoặc yêu cầu sửa đổi (ACF-11)"
+    )
+    review_parser.add_argument("task_id", help="Mã task hoặc run_id cần review")
+    review_group = review_parser.add_mutually_exclusive_group()
+    review_group.add_argument(
+        "-y", "--approve",
+        action="store_true",
+        help="Phê duyệt task: tự động merge nhánh vào main, đóng task và giải phóng khóa"
+    )
+    review_group.add_argument(
+        "--reject", "--request-changes",
+        dest="request_changes",
+        action="store_true",
+        help="Từ chối/Yêu cầu sửa đổi: chuyển feedback vào vòng lặp self-correction"
+    )
+    review_parser.add_argument(
+        "--feedback",
+        dest="feedback",
+        help="Nội dung phản hồi hoặc lý do yêu cầu sửa đổi"
+    )
+    review_parser.add_argument(
+        "--reviewer",
+        dest="reviewer",
+        default="human",
+        help="Tên người review (mặc định: human)"
+    )
+    review_parser.add_argument(
+        "--base",
+        dest="base_branch",
+        default="main",
+        help="Nhánh gốc để merge (mặc định: main)"
+    )
+    review_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Xuất kết quả ở định dạng JSON"
+    )
+
     # factory release
     release_parser = subparsers.add_parser(
         "release",
@@ -463,6 +504,52 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"  - GitHub PR:      {pkg.pr_url}")
             print(f"  - Summary report: {pkg.summary_artifact_path}")
             print(f"  - Package JSON:   {pkg.json_artifact_path}")
+            return 0
+
+        elif args.command == "review":
+            result = orchestrator.review_task(
+                task_id=args.task_id,
+                approve=args.approve,
+                reject=args.request_changes,
+                feedback=args.feedback,
+                reviewer=args.reviewer,
+                base_branch=args.base_branch,
+            )
+            if args.json:
+                print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
+                return 0
+
+            from src.review.models import ReviewDecision, ReviewSummary
+            if isinstance(result, ReviewDecision):
+                tag = "[APPROVED & MERGED]" if result.action.value == "approve" else "[CHANGES REQUESTED]"
+                print(f"{tag} {result.message}")
+                if result.merge_commit_sha:
+                    print(f"  - Merge Commit:     {result.merge_commit_sha[:8]}")
+                if result.next_fix_prompt_path:
+                    print(f"  - Fix prompt:       {result.next_fix_prompt_path}")
+                return 0
+
+            summary: ReviewSummary = result
+            print(f"=== ĐÁNH GIÁ KẾT QUẢ TASK [{summary.task_id}] ===")
+            print(f"Mục tiêu:        {summary.task_title}")
+            print(f"Run ID:          {summary.run_id} (Status: {summary.run_status})")
+            print(f"Nhánh:           {summary.branch} -> {summary.base_branch}")
+            if summary.commit_sha:
+                print(f"Commit SHA:      {summary.commit_sha[:8]}")
+            if summary.pr_url:
+                print(f"GitHub PR:       {summary.pr_url}")
+            print(f"Quality Gate:    {'PASS (100%)' if summary.quality_gate_passed else 'FAIL'}")
+            print(f"Kiểm thử:        {summary.test_summary}")
+            if summary.log_path:
+                print(f"Log path:        {summary.log_path}")
+            print(f"Số file đổi:     {len(summary.diff_files)} files")
+            for f in summary.diff_files:
+                print(f"  + {f}")
+            print("-" * 60)
+            print("Để phê duyệt & auto-merge, chạy:")
+            print(f"  python -m src.factory review {summary.task_id} --approve")
+            print("Để yêu cầu sửa đổi, chạy:")
+            print(f"  python -m src.factory review {summary.task_id} --reject --feedback \"<nội dung>\"")
             return 0
 
         elif args.command == "release":

@@ -243,6 +243,32 @@ class SequentialOrchestrator:
             skip_remote_api=skip_remote_api,
         )
 
+    def review_task(
+        self,
+        task_id: str,
+        approve: bool = False,
+        reject: bool = False,
+        feedback: str = None,
+        reviewer: str = "human",
+        base_branch: str = "main",
+    ):
+        """Review, approve/merge, or request changes on a task."""
+        from src.review.manager import ReviewManager
+        manager = ReviewManager(
+            repo_root=self.workspace_dir,
+            run_repo=self._get_run_repo(),
+            beads_client=self.beads,
+            lock_manager=self.lock_manager,
+            runs_dir=self.workspace_dir / "runs",
+            tasks_dir=self.tasks_dir,
+        )
+        if approve:
+            return manager.approve(task_id, reviewer=reviewer, base_branch=base_branch)
+        elif reject or feedback:
+            return manager.request_changes(task_id, feedback=feedback or "Yêu cầu điều chỉnh lại mã nguồn", reviewer=reviewer)
+        else:
+            return manager.get_review_summary(task_id)
+
     def next_task(
         self,
         dry_run: bool = False,

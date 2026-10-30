@@ -151,3 +151,14 @@ class BeadsClient:
             raise TaskBlockedError(task_id=task_id, blocked_by=unmet_deps or ["Unsatisfied dependencies"])
 
         return task
+
+    def close_task(self, task_id: str, reason: Optional[str] = None) -> bool:
+        """Close a completed task in Beads (e.g. bd close task_id)."""
+        args = ["close", task_id]
+        if reason:
+            args.extend(["--reason", f'"{reason}"'])
+        try:
+            self._run_command(args)
+            return True
+        except Exception:
+            return False

@@ -51,10 +51,12 @@ AI-Coding-Factory/
 ├── .env.example        # Mẫu biến môi trường (không chứa secret)
 ├── .gitignore          # Cấu hình bỏ qua các file nhạy cảm và build artifact
 ├── AGENTS.md           # Quy tắc, phạm vi quyền hạn và chỉ dẫn cho AI Agent
-├── README.md           # Tài liệu tổng quan dự án và hướng dẫn sử dụng
+├── README.md           # Tài liệu tổng quan dự án
+├── USER_GUIDE.md       # Sách hướng dẫn vận hành chi tiết cho người dùng
 ├── src/                # Mã nguồn chính của hệ thống Orchestrator & Factory
+├── tasks/              # Thư mục chứa Task Contracts định dạng JSON
 ├── tests/              # Bộ kiểm thử tự động (Unit test, Integration test)
-└── docs/               # Tài liệu kiến trúc và hướng dẫn vận hành chi tiết
+└── runs/               # Thư mục lưu trữ SQLite DB, file locks và run artifacts
 ```
 
 ---
@@ -95,12 +97,22 @@ Tất cả các AI Coding Agent tham gia đóng góp mã nguồn cho dự án n�
 
 ## 6. Lộ Trình Phát Triển (Roadmap)
 
+### Giai đoạn 1 & 2: Khung Điều Phối & Tự Động Hóa Khép Kín (Đã hoàn thành 100%)
 - [x] **ACF-01:** Khởi tạo repository, tài liệu hướng dẫn và quy tắc vận hành Agent (`README.md`, `AGENTS.md`, `.gitignore`, `.env.example`).
-- [ ] **ACF-02:** Thiết kế cấu trúc dữ liệu Task và tích hợp công cụ quản lý Beads (`bd`).
-- [ ] **ACF-03:** Xây dựng lõi Orchestrator điều phối vòng đời của Agent.
-- [ ] **ACF-04:** Tích hợp bộ Quality Gates (Lint, Typecheck, Test Runner).
-- [ ] **ACF-05:** Cơ chế Self-Correction và xử lý trạng thái Blocked.
-- [ ] **ACF-06:** Tự động hóa tạo Pull Request và tương tác với Human Reviewer.
+- [x] **ACF-02:** Task Contract schema (`TaskContract`) kiểm tra tính hợp lệ về scope, constraints, acceptance criteria.
+- [x] **ACF-03:** Tích hợp Beads CLI (`BeadsClient`) đọc task sẵn sàng (`bd ready`) và kiểm tra dependency blocks.
+- [x] **ACF-04:** Lưu trữ run record và lịch sử attempt bằng SQLite (`RunRepository`), tự động migration và persistence.
+- [x] **ACF-05:** Sequential Orchestrator (`SequentialOrchestrator`) với khóa nguyên tử (`TaskLockManager`), chế độ `--dry-run`.
+- [x] **ACF-06:** Handoff cho Antigravity (`AntigravityHandoffManager`), sinh prompt chuẩn và quản lý trạng thái `waiting_for_human`.
+- [x] **ACF-07:** Git branch và diff guard (`GitGuard`), phát hiện working tree bẩn và chặn đứng diff ngoài phạm vi file.
+- [x] **ACF-08:** Automated Quality Gates Runner (`QualityGateRunner`), thực thi kiểm thử và streaming log.
+- [x] **ACF-09:** Self-Correction Engine (`SelfCorrectionEngine`), tự động sửa lỗi có giới hạn (`MAX_FIX_ATTEMPTS = 3`).
+- [x] **ACF-10:** Pull Request Automation & Delivery Packaging (`PullRequestManager`), tạo commit và PR theo chuẩn.
+- [x] **ACF-11:** Human Review & Auto-Merge (`ReviewManager`), phê duyệt auto-merge `--no-ff` và đóng task Beads (`bd close`).
+- [x] **ACF-12:** Auto-Pilot Loop (`AutoPilotEngine`) và Central Dashboard (`DashboardRenderer`), chạy xuyên suốt đồ thị DAG.
+
+> [!TIP]
+> Xem cẩm nang vận hành chi tiết và hướng dẫn sử dụng từng lệnh CLI tại: **[USER_GUIDE.md](USER_GUIDE.md)**.
 
 ---
 
